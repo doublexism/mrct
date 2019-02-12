@@ -149,12 +149,15 @@ bootDiffMean <- function(dat, weight = 1, control = 2, treatment =1){
   return(boot_diff)
 }
 # calculate 95% bootstrap CI overlap
-bootCover <- function(LCI, NLCI){
+bootCover <- function(LCI, NLCI, upper = FALSE){
   ## calculate the coverage rate based on bootstrap CI for Local and non-Local
   # LCI: bootstrap CI for Local population
   # NLCI: bootstrap CI for the Non-Local population
-  
-  bootCover <- max((min(LCI[2],NLCI[2]) - max(LCI[1],NLCI[1]))/(LCI[2] - LCI[1]),0, na.rm = TRUE)
+  if (upper == FALSE){
+    bootCover <- max((min(LCI[2],NLCI[2]) - max(LCI[1],NLCI[1]))/(LCI[2] - LCI[1]),0, na.rm = TRUE)
+  } else {
+    bootCover <- max((LCI[2] - max(LCI[1],NLCI[1]))/(LCI[2] - LCI[1]),0, na.rm = TRUE)
+  }
   return(bootCover)
 }
 
@@ -183,7 +186,8 @@ BCICR <- function(dat, local_index, treatment = 1, control=2, num_boot = 1000,st
     }
   }
   bcicr <- bootCover(local_CI, nonlocal_CI)
-  return(list(BCICR = bcicr, local_CI = local_CI, nonlocal_CI = nonlocal_CI))
+  bcicr_m <- bootCover(local_CI, nonlocal_CI, upper = TRUE)
+  return(list(BCICR = bcicr, BCICR_m = bcicr_m, local_CI = local_CI, nonlocal_CI = nonlocal_CI))
 }
 
 LPP <- function(bcicr, cutoff){
@@ -193,7 +197,7 @@ LPP <- function(bcicr, cutoff){
   return(sum(bcicr > cutoff)/length(bcicr))
 }
 
-BCICR_sim <- function(params,cutoff,local, num_pat = 400,num_sim = 1000, num_boot=1000,probability = npProbability, statistics = "mean",sim_func = sim.continuous,treatment = 1, control=2,seed = 20190107){
+BCICR_sim <- function(params,cutoff,local, num_pat = 400,num_sim = 1000, num_boot=1000,probability = npProbability, statistics = "mean",sim_func = sim.continuous,treatment = 1, control=2,seed = 0){
   ## the main simulation function for a fixed parameters
   ## returns a list of BCICR, cutoff and LPP for each simulated dataset
   # params: the generated parameters
@@ -216,8 +220,11 @@ BCICR_sim <- function(params,cutoff,local, num_pat = 400,num_sim = 1000, num_boo
   index <- map2(start_data, end_data, seq,by = 1) %>% unlist()
   params$Num <- params$Num * num_sim
   dat <- simulate(params = params,sim_func = sim_func)
-  bcicr <- map_dbl(1:num_sim, ~BCICR(dat = dat[index + (.-1)*rep(num_per_group,num_per_group),], local_index = local,treatment = treatment, control = control,num_boot = num_boot,statistics = statistics,probability = probability)$BCICR)
+  bcicr_result <- map(1:num_sim, ~BCICR(dat = dat[index + (.-1)*rep(num_per_group,num_per_group),], local_index = local,treatment = treatment, control = control,num_boot = num_boot,statistics = statistics,probability = probability))
+  bcicr <- getListElement(bcicr_result, "BCICR")
+  bcicr_m <- getListElement(bcicr_result, "BCICR_m")
   LPP <- map_dbl(cutoff, ~LPP(bcicr, .))
+  LPP_m <- map_dbl(cutoff, ~LPP(bcicr_m,.))
   return(list(BCICR = bcicr,cutoff=cutoff,LPP = LPP))
 }
 
@@ -243,7 +250,7 @@ scenarios_sim <- function(prop_local, sample_size, delta,homogenous = TRUE,num_s
     }
   NL_delta <- NL_num/sum(NL_delta) * NL_delta
   params.list <- pmap(scenarios, ~paramGenerate(num_pat=..1,num_region = NL_num+1,num_param = 2,prop_region = c(rep((1 - ..2)/NL_num,NL_num),..2),
-                                                par1_arm1 = c(NL_delta,0+NL_ave_effect*..3),par1_arm2 = rep(0,NL_num+1), more_par = list(par2_arm1 = c(NL_var,1), par2_arm2 = c(NL_var,1))))
+                                                par1_arm1 = c(NL_delta,0+..3),par1_arm2 = rep(0,NL_num+1), more_par = list(par2_arm1 = c(NL_var,1), par2_arm2 = c(NL_var,1))))
   sim <- map(params.list, ~BCICR_sim(params = .,
                                      cutoff = seq(0.01,1,0.01),
                                      local =NL_num+1,
@@ -310,10 +317,13 @@ simResult <- function(...){
   LPP <- getListElement(results,name = "sim_result",simplify = FALSE) %>% 
     do.call(c,.) %>%
     getListElement(., name = "LPP")
+  LPP_m <- getListElement(results,name = "sim_result",simplify = FALSE) %>% 
+    do.call(c,.) %>%
+    getListElement(., name = "LPP_m")
   cutoff <- getListElement(results,name = "sim_result",simplify = FALSE) %>% 
     do.call(c,.) %>%
     getListElement(., name = "cutoff")
-  LPP_dat <- data.frame(cutoff = cutoff, LPP = LPP)
+  LPP_dat <- data.frame(cutoff = cutoff, LPP = LPP,LPP_m = LPP_m)
   data <- bind_cols(scenarios, LPP_dat)
   return(data)
 }
