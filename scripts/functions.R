@@ -241,8 +241,9 @@ scenarios_sim <- function(prop_local, sample_size, delta,homogenous = TRUE,num_s
     if (unequal_eff == FALSE){
       NL_delta <- rep(1,NL_num)
     }
+  NL_delta <- NL_num/sum(NL_delta) * NL_delta
   params.list <- pmap(scenarios, ~paramGenerate(num_pat=..1,num_region = NL_num+1,num_param = 2,prop_region = c(rep((1 - ..2)/NL_num,NL_num),..2),
-                                                par1_arm1 = c(NL_delta,0+..3),par1_arm2 = rep(0,NL_num+1), more_par = list(par2_arm1 = c(NL_var,1), par2_arm2 = c(NL_var,1))))
+                                                par1_arm1 = c(NL_delta,0+NL_ave_effect*..3),par1_arm2 = rep(0,NL_num+1), more_par = list(par2_arm1 = c(NL_var,1), par2_arm2 = c(NL_var,1))))
   sim <- map(params.list, ~BCICR_sim(params = .,
                                      cutoff = seq(0.01,1,0.01),
                                      local =NL_num+1,
