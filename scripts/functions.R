@@ -225,7 +225,7 @@ BCICR_sim <- function(params,cutoff,local, num_pat = 400,num_sim = 1000, num_boo
   bcicr_m <- getListElement(bcicr_result, "BCICR_m")
   LPP <- map_dbl(cutoff, ~LPP(bcicr, .))
   LPP_m <- map_dbl(cutoff, ~LPP(bcicr_m,.))
-  return(list(BCICR = bcicr,cutoff=cutoff,LPP = LPP))
+  return(list(BCICR = bcicr,BCICR_m = bcicr_m,cutoff=cutoff,LPP = LPP, LPP_m = LPP_m))
 }
 
 
