@@ -1,9 +1,11 @@
-params <- paramGenerate(num_pat = 400, num_region = 4, prop_region = c(0.35,0.30,0.30,0.05),
-                        num_arm = 2,
-                        num_param = 1,name_param = c("ORR"),
-                        par1_arm1 = c(0.25,0.25,0.25,0.15),par1_arm2 = c(0.1,0.1,0.1,0.1))
-
-result4 <- scenarios_sim(prop_local = c(0.5),sample_size = 400,delta = c(0),num_sim = 100,num_boot = 1000,type = "binary",treatment_rate = 0.4,control_rate = 0.1)
+resultb1 <- scenarios_sim(prop_local = c(0.05, 0.10,0.15,0.20), # proportion of local population
+                         sample_size = 0,                    # sample size of the trial
+                         delta = c(0.5, 1),       # ratio of local effect to non-local effect
+                         num_sim = 100,                       # number of simulated datasets
+                         num_boot = 100,                      # number of bootstrap resampling
+                         type = "binary",
+                         treatment_rate = 0.40,
+                         control_rate = 0.25)                # specifing the effect size of the 4 non-local populations
 
 dat <- simulate(params = params,sim_func = sim.binary)
 summary(dat, "mean")
