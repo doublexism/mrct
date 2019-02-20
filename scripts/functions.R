@@ -22,7 +22,7 @@ paramGenerate <- function(num_pat, num_region,prop_region,num_arm = 2,ratio = NU
   # par1_arm2: a vector containing the value of parameter1 in the second arm across regions
   # more_par: a list of vectors that contain additional parameters.
   
-   if (is.null(ratio)){
+  if (is.null(ratio)){
     ratio <- rep(1,num_arm)
   }
   params <- unlist(c(par1_arm1, par1_arm2, more_par))
@@ -84,7 +84,6 @@ sim.survival <- function(par){
   event <- as.numeric(EOS == event_free_time)
   return(data.frame(start_time = enroll_time, end_time = EOS, event = event))
 }
-
 
 simulate <- function(params, sim_func){
   ## the main function to simulate dataset
@@ -198,13 +197,12 @@ LPP <- function(bcicr, cutoff){
   return(sum(bcicr > cutoff)/length(bcicr))
 }
 
-BCICR_sim <- function(params,cutoff,local, num_pat = 400,num_sim = 1000, num_boot=1000,probability = npProbability, statistics = "mean",sim_func = sim.continuous,treatment = 1, control=2,seed = 0){
+BCICR_sim <- function(params,cutoff,local, num_sim = 1000, num_boot=1000,probability = npProbability, statistics = "mean",sim_func = sim.continuous,treatment = 1, control=2,seed = 0){
   ## the main simulation function for a fixed parameters
   ## returns a list of BCICR, cutoff and LPP for each simulated dataset
   # params: the generated parameters
   # cutoff: a vector of cutoff values to explore
   # local: the index of local population
-  # num_pat: number of patients in the study
   # num_sim: number of simulated datasets
   # num_boot: number of bootstrap simulation
   # probability: the function to calculate the resampling probability
@@ -215,7 +213,7 @@ BCICR_sim <- function(params,cutoff,local, num_pat = 400,num_sim = 1000, num_boo
   # seed: random seed
   set.seed(seed)
   num_group <- nrow(params)/length(unique(params$Param))
-  num_per_group <- round(num_pat*params$Prop[1:num_group])
+  num_per_group <- params$Num[1:num_group]
   start_data <- cumsum(c(1, num_per_group[-num_group]*num_sim))
   end_data <- start_data + num_per_group-1
   index <- map2(start_data, end_data, seq,by = 1) %>% unlist()
@@ -231,50 +229,62 @@ BCICR_sim <- function(params,cutoff,local, num_pat = 400,num_sim = 1000, num_boo
 
 
 #sim scenarios
-scenarios_sim <- function(prop_local, sample_size, delta,homogenous = TRUE,num_sim = 1000, num_boot = 1000,
+scenarios_sim <- function(prop_local, sample_size, delta,num_sim = 1000, num_boot = 1000,
                           type = "continuous", unequal_var = FALSE, unequal_eff = FALSE, NL_var = NULL,NL_delta = NULL,treatment_rate = 0.3,control_rate = 0.1,seed = 20190117){
   ## perform simulation scenarios for different scenarios
   # prop_local: a vector of local population proportions
-  # sample_size: a vector of the number of patients
+  # sample_size: a vector of the number of patients, if sample_size  = NULL, it will be calculated by power.
   # delta: the difference of effect size in percentage 0 to 1
   # unequal_var: the variance between multiple non-locol population are not equal
   # unequal_effect: the effects in non-local population are not equal
   scenarios <- expand.grid(sample_size = sample_size, prop_local = prop_local, delta=delta)
-  
   if (type == "continuous"){
+    
     NL_num <- ifelse(any(unequal_eff, unequal_var), max(length(NL_var), length(NL_delta)),1)
     if (unequal_var == FALSE){
-        NL_var <- rep(1,NL_num)
+      NL_var <- rep(2,NL_num)
     } 
     if (unequal_eff == FALSE){
       NL_delta <- rep(1,NL_num)
     }
-  NL_delta <- NL_num/sum(NL_delta) * NL_delta
-  params.list <- pmap(scenarios, ~paramGenerate(num_pat=..1,num_region = NL_num+1,num_param = 2,prop_region = c(rep((1 - ..2)/NL_num,NL_num),..2),
-                                                par1_arm1 = c(NL_delta,0+..3),par1_arm2 = rep(0,NL_num+1), more_par = list(par2_arm1 = c(NL_var,1), par2_arm2 = c(NL_var,1))))
-  sim <- map(params.list, ~BCICR_sim(params = .,
-                                     cutoff = seq(0,1,0.01),
-                                     local =NL_num+1,
-                                     num_pat = sample_size,
-                                     num_sim = num_sim,
-                                     num_boot = num_boot,
-                                     sim_func = sim.continuous,
-                                     seed = seed))
-  scenarios$variable_type <- type
-  scenarios$unequal_variance <- unequal_var
-  scenarios$unequal_effect <- unequal_eff
+    prop_region <-  map(prop_local,~c(rep((1 - .)/NL_num,NL_num),.)) %>% do.call(rbind,.)
+    if (sample_size == 0){
+      mean_diff = 1
+      mean_var = c(prop_region %*% c(NL_var,2))**2*2
+      sample_size <- ceiling((qnorm(0.025)+qnorm(0.1))**2*2*mean_var/mean_diff**2)
+      scenarios$sample_size <- rep(sample_size, length(delta))
+    }
+    NL_delta <- NL_num/sum(NL_delta) * NL_delta
+    params.list <- pmap(scenarios, ~paramGenerate(num_pat=..1,num_region = NL_num+1,num_param = 2,prop_region = c(rep((1 - ..2)/NL_num,NL_num),..2),
+                                                  par1_arm1 = c(NL_delta,0+..3),par1_arm2 = rep(0,NL_num+1), more_par = list(par2_arm1 = c(NL_var,1), par2_arm2 = c(NL_var,1))))
+    sim <- map(params.list, ~BCICR_sim(params = .,
+                                       cutoff = seq(0,1,0.01),
+                                       local =NL_num+1,
+                                       num_sim = num_sim,
+                                       num_boot = num_boot,
+                                       sim_func = sim.continuous,
+                                       seed = seed))
+    scenarios$sample_size <- map_dbl(params.list, ~sum(.$Num)/length(unique(.$Param)))
+    scenarios$variable_type <- type
+    scenarios$unequal_variance <- unequal_var
+    scenarios$unequal_effect <- unequal_eff
   } else if (type == "binary"){
-    params.list <- pmap(scenarios, ~paramGenerate(num_pat=..1,num_region =2,num_param = 2,prop_region = c(1 - ..2,..2),
-                                                  par1_arm1 = c(treatment_rate,(treatment_rate -control_rate)* delta+control_rate),
+    if (sample_size == 0){
+      mean_diff = treatment_rate-control_rate
+      sample_size <- ceiling((qnorm(0.025)+qnorm(0.1))**2*(treatment_rate*(1 - treatment_rate)+control_rate*(1-control_rate))/mean_diff**2)
+      scenarios$sample_size <- sample_size
+    }
+    params.list <- pmap(scenarios, ~paramGenerate(num_pat=..1,num_region =2,num_param = 1,prop_region = c(1 - ..2,..2),
+                                                  par1_arm1 = c(treatment_rate,(treatment_rate -control_rate)*..3+control_rate),
                                                   par1_arm2 = rep(control_rate,2)))
     sim <- map(params.list, ~BCICR_sim(params = .,
-                                       cutoff = seq(0.01,1,0.01),
+                                       cutoff = seq(0,1,0.01),
                                        local =2,
-                                       num_pat = sample_size,
                                        num_sim = num_sim,
                                        num_boot = num_boot,
                                        sim_func = sim.binary,
                                        seed = seed))
+    scenarios$sample_size <- map_dbl(params.list, ~sum(.$Num))
     scenarios$variable_type <- type
     scenarios$treatment_rate <- treatment_rate
     scenarios$control_rate <- control_rate
@@ -295,8 +305,8 @@ summary.sims <- function(sims,...){
   check <- map(dfs, ~distinct(.[c("Region","Arm")])) %>% bind_rows()
   stats <- list()
   for (s in statistics){
-   .func <- match.fun(s)
-   stats[[s]] <- map_dbl(value, .func)
+    .func <- match.fun(s)
+    stats[[s]] <- map_dbl(value, .func)
   }
   check <- bind_cols(check, as.data.frame(stats))
   return(check)
@@ -311,25 +321,24 @@ getListElement <- function(.l, name, simplify = TRUE){
 }
 # summarizing and ploting 
 # summarizing the outputs
+# summarizing the outputs
 simResult <- function(...){
   results <- list(...)
   scenarios <- getListElement(results,name = "scenarios",simplify = FALSE) %>% bind_rows()
   scenarios <- scenarios[rep(1:nrow(scenarios), each = 101),]
-  result.list <- getListElement(results,name = "sim_result",simplify = FALSE) 
+  result.list <- getListElement(results,name = "sim_result",simplify = FALSE) %>% 
+    do.call(c,.)
   LPP <- result.list %>% 
-    do.call(c,.) %>%
     getListElement(., name = "LPP")
   LPP_m <- result.list %>% 
-    do.call(c,.) %>%
     getListElement(., name = "LPP_m")
   cutoff <- result.list %>% 
-    do.call(c,.) %>%
     getListElement(., name = "cutoff")
   LPP_dat <- data.frame(cutoff = cutoff, LPP = LPP,LPP_m = LPP_m)
   data <- bind_cols(scenarios, LPP_dat)
   # get raw bcicr and bcicr_m data
-  data_bcicr <- map(result.list, .$BCICR)
-  data_bcicr_m <- map(result.list, .$BCICR_m)
+  data_bcicr <-getListElement(result.list, name = "BCICR", simplify = FALSE)
+  data_bcicr_m <- getListElement(result.list, name = "BCICR_m", simplify = FALSE)
   return(list(data=data, bcicr = data_bcicr, bcicr_m = data_bcicr_m))
 }
 
