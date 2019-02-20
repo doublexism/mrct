@@ -85,6 +85,7 @@ sim.survival <- function(par){
   return(data.frame(start_time = enroll_time, end_time = EOS, event = event))
 }
 
+
 simulate <- function(params, sim_func){
   ## the main function to simulate dataset
   # params: the parameter generated
@@ -252,7 +253,7 @@ scenarios_sim <- function(prop_local, sample_size, delta,homogenous = TRUE,num_s
   params.list <- pmap(scenarios, ~paramGenerate(num_pat=..1,num_region = NL_num+1,num_param = 2,prop_region = c(rep((1 - ..2)/NL_num,NL_num),..2),
                                                 par1_arm1 = c(NL_delta,0+..3),par1_arm2 = rep(0,NL_num+1), more_par = list(par2_arm1 = c(NL_var,1), par2_arm2 = c(NL_var,1))))
   sim <- map(params.list, ~BCICR_sim(params = .,
-                                     cutoff = seq(0.01,1,0.01),
+                                     cutoff = seq(0,1,0.01),
                                      local =NL_num+1,
                                      num_pat = sample_size,
                                      num_sim = num_sim,
@@ -313,19 +314,31 @@ getListElement <- function(.l, name, simplify = TRUE){
 simResult <- function(...){
   results <- list(...)
   scenarios <- getListElement(results,name = "scenarios",simplify = FALSE) %>% bind_rows()
-  scenarios <- scenarios[rep(1:nrow(scenarios), each = 100),]
-  LPP <- getListElement(results,name = "sim_result",simplify = FALSE) %>% 
+  scenarios <- scenarios[rep(1:nrow(scenarios), each = 101),]
+  result.list <- getListElement(results,name = "sim_result",simplify = FALSE) 
+  LPP <- result.list %>% 
     do.call(c,.) %>%
     getListElement(., name = "LPP")
-  LPP_m <- getListElement(results,name = "sim_result",simplify = FALSE) %>% 
+  LPP_m <- result.list %>% 
     do.call(c,.) %>%
     getListElement(., name = "LPP_m")
-  cutoff <- getListElement(results,name = "sim_result",simplify = FALSE) %>% 
+  cutoff <- result.list %>% 
     do.call(c,.) %>%
     getListElement(., name = "cutoff")
   LPP_dat <- data.frame(cutoff = cutoff, LPP = LPP,LPP_m = LPP_m)
   data <- bind_cols(scenarios, LPP_dat)
-  return(data)
+  # get raw bcicr and bcicr_m data
+  data_bcicr <- map(result.list, .$BCICR)
+  data_bcicr_m <- map(result.list, .$BCICR_m)
+  return(list(data=data, bcicr = data_bcicr, bcicr_m = data_bcicr_m))
+}
+
+oddsratio <- function(control,treatment=NULL,or=NULL){
+  if (is.null(or)){
+    return(treatment*(1-control)/(control*(1-treatment)))
+  } else {
+    return(or*control/((or-1)*control + 1))
+  }
 }
 # ROC curve: 1-LPP of delta=0 as x-axis and LPP  of delta > 0 as y-axis
 # 
