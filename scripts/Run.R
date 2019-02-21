@@ -58,8 +58,8 @@ result6 <- scenarios_sim(prop_local = c(0.05, 0.10,0.15,0.20,0.25), # proportion
                          num_boot = 1000,                      # number of bootstrap resampling
                          type = "binary",                  # continuous enpoints
                          treatment_rate =  0.18,                  # equal variance between non-local population
-                         control_rate = 0.25)                   # equal effect size between non-local population)
+                         control_rate = 0.10)                   # equal effect size between non-local population)
 timestamp()
 # 3. survival -- HR_global = 0.6
 result <- simResult(result1,result2,result3,result4,result5,result6)
-writeRDS(result, sprintf("data/result_sum_%s.RDS",Sys.Date()))
+saveRDS(result, sprintf("data/result_sum_%s.RDS",Sys.Date()))
