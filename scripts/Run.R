@@ -67,7 +67,7 @@ result6 <- scenarios_sim(prop_local = c(0.05, 0.10,0.15,0.20,0.25), # proportion
                          control_rate = 0.10)                   # equal effect size between non-local population)
 timestamp()
 # 3. survival -- HR_global = 0.6
-result1t <- scenarios_sim(prop_local = c(0.05,0.10,0.15,0.20,0.25), # proportion of local population
+result7 <- scenarios_sim(prop_local = c(0.05,0.10,0.15,0.20,0.25), # proportion of local population
                           parallel = TRUE,
                           sample_size = 0,                    # sample size of the trial
                           delta = c(0,0.25,0.5,0.75,1),       # ratio of local effect to non-local effect
@@ -81,7 +81,5 @@ result1t <- scenarios_sim(prop_local = c(0.05,0.10,0.15,0.20,0.25), # proportion
                           follow_up = 0)     
 
 
-
-
-result <- simResult(result1,result2,result3,result4,result5,result6)
+result <- simResult(result1,result2,result3,result4,result5,result6, result7)
 saveRDS(result, sprintf("data/result_sum_%s.RDS",Sys.Date()))

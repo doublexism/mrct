@@ -212,10 +212,11 @@ BCICR <- function(dat, local_index, treatment = 1, control=2, num_boot = 1000,st
     global_test <- t.test(dat$value[dat$Arm == treatment], dat$value[dat$Arm == control],alternative = "greater")[c("statistic","p.value")]
     pass <- (global_test$statistic > 0 & global_test$p.value < 0.025)
   } else if (statistics == "proportion"){
-    p1 <- sum(dat$value[dat$Arm == treatment])
-    p2 <- sum(dat$value[dat$Arm == control])
+
     n1 <- sum(dat$Arm == treatment)
     n2 <- sum(dat$Arm == control)
+    p1 <- sum(dat$value[dat$Arm == treatment])/n1
+    p2 <- sum(dat$value[dat$Arm == control])/n2
     z <- (p1-p2)/sqrt(p1*(1-p1)/n1+p2*(1-p2)/n2)
     pass <- z > 1.96
   } else if (statistics == "loghr"){
@@ -358,7 +359,7 @@ scenarios_sim <- function(prop_local, sample_size, delta,num_sim = 1000, num_boo
                  num_sim = num_sim,
                  num_boot = num_boot,
                  sim_func = sim.binary,
-                 statistics = "porportion",
+                 statistics = "proportion",
                  seed = seed,
                  .parallel = parallel,
                  .paropts = list(.packages = c("plyr","dplyr","purrr","gsDesign","survival"),
@@ -368,9 +369,7 @@ scenarios_sim <- function(prop_local, sample_size, delta,num_sim = 1000, num_boo
     scenarios$variable_type <- type
     scenarios$treatment_rate <- treatment_rate
     scenarios$control_rate <- control_rate
-    scenarios$mean_diff <- mean_diff
-    scenarios$mean_variance <- mean_var
-  } else if (type == "survival"){
+   } else if (type == "survival"){
     if (sample_size == 0){
       design <- gsSurv(k=2, timing = 0.67,test.type = 4,sfu = sfLDOF,sfl = sfHSD, sflpar = -10,lambdaC = log(2)/median_tte_control, hr = expect_hr, hr0=1,eta = log(2)/censor_tte,gamma = enr,minfup = median_tte_control)
       sample_size <- round(c(tail(design$eNC,1)) + c(tail(design$eNE,1)))
@@ -480,13 +479,15 @@ oddsratio <- function(control,treatment=NULL,or=NULL){
 ## line plot function
 linePlot <- function(data, cutoff_grp = c(0.4,0.6,0.8,0.95), filename = NULL,suffix = "",
                      x="delta", y = "LCP",device = "png", type = "continuous", 
-                     variance=NULL, effect=NULL,var_val = 2, effect_val = 1, treatment=NULL, control=NULL, 
+                     variance=NULL, effect=NULL,var_val = 2, effect_val = 1, treatment=NULL, control=NULL,expect_hr = NULL,enr = NULL,median_tte = NULL, censor_tte = NULL, 
                      height = 12, width = 12){
   if (type == "continuous"){
     data_plot <- data[data$cutoff %in% cutoff_grp & data$variance == variance & data$effect == effect & data$variable_type==type,]
-  } else {
+  } else if (type == "binary"){
     data_plot <- data[data$cutoff %in% cutoff_grp & data$treatment_rate == treatment & data$control_rate == control & data$variable_type==type,]
     
+  } else if (type == "survival"){
+    data_plot <- data[data$cutoff %in% cutoff_grp & data$treatment_rate == treatment & data$control_rate == control & data$variable_type==type,]
   }
   if (is.null(filename)){
     filename <- sprintf("figs/%s %s %s-eff %0.2f %s-var %0.1f %s.%s",y, x,effect, effect_val,variance,var_val,suffix,device)
@@ -515,6 +516,7 @@ linePlot <- function(data, cutoff_grp = c(0.4,0.6,0.8,0.95), filename = NULL,suf
   title <- ggdraw() + draw_label(label,fontface = "bold",size = 10)
   p <- plot_grid(title, p,ncol=1,rel_heights = c(0.04,1))
   ggplot2::ggsave(filename, plot = p, device = device, width = width, height = height,units = "cm")
+  print(p)
   return(data_plot)
 }
 # ROC curve: 1-LPP of delta=0 as x-axis and LPP  of delta > 0 as y-axis
