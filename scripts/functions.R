@@ -305,7 +305,8 @@ scenarios_sim <- function(prop_local, sample_size, delta,num_sim = 1000, num_boo
   # unequal_var: the variance between multiple non-locol population are not equal
   # unequal_effect: the effects in non-local population are not equal
   if (parallel == TRUE){
-    cl <- makeCluster(detectCores(logical = FALSE))
+    ncores <- detectCores(logical = FALSE)/2
+    cl <- makeCluster(ncores)
     registerDoParallel(cl)
   }
   scenarios <- expand.grid(sample_size = sample_size, prop_local = prop_local, delta=delta)
